@@ -1,0 +1,146 @@
+#add GUI, with threshold slider
+#make import picture function
+#count different cell types separately?
+#make GUI not look like garbage
+#allow "enter" to confirm slider decision, not "x"
+#print result to GUI
+from easygui import *
+import tkinter as tk
+from tkinter import filedialog
+import cv2
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button
+import os
+import csv
+def datasave(cellcount,filename,files):
+    details=['picture taken','cell count']
+    rows=(files,cellcount)
+    f=open(filename,'w')
+    write=csv.writer(f)
+    write.writerow(details)
+    write.writerows(rows)
+    done = True
+    return done
+
+def openfile():
+    root = tk.Tk()
+    root.withdraw()
+    root.update()
+    files = filedialog.askopenfilenames()
+    root.destroy()
+    cellpicture=cv2.imread(files[0])
+    return cellpicture
+#initialising plt window and row/column values for picture matrix
+def initialplot(cellpicture):
+
+    fig=plt.figure(figsize=(10,7))
+    #cv2.imread takes in the image as a usable file
+
+    rows=1
+    columns=2
+    #could add these as sliders to window?
+    alpha = 1.5 # Contrast control (1.0-3.0)
+    beta = 0 # Brightness control (0-100)
+    #convert image to RGB,then to grayscale then binary
+    contrastboosted = cv2.convertScaleAbs(cellpicture, alpha=alpha, beta=beta)
+    RGBpic=cv2.cvtColor(contrastboosted,cv2.COLOR_BGR2RGB)
+    greypic=cv2.cvtColor(RGBpic,cv2.COLOR_RGB2GRAY)
+    #255 is maximum brightness in the grayscale image, threshval is the light value at which a pixel becomes white
+    threshval=50
+    _, binary = cv2.threshold(greypic,threshval,255,cv2.THRESH_BINARY_INV)
+    #this then plots the contours onto the image, circling all the cells
+    contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # draw all contours
+    image = cv2.drawContours(RGBpic, contours, -1, (0, 255, 0), 2)
+    #add subplot adds the first picture to the window
+    return threshval,contours,rows,columns,fig
+
+def setupsubplot1(rows,columns,cellpicture,fig):
+    fig.add_subplot(rows,columns,1)
+    im=plt.imshow(cellpicture)
+    #sets axis labels to invisible
+    im.axes.get_xaxis().set_visible(False)
+    im.axes.get_yaxis().set_visible(False)
+#sets slider position and range
+def setupsliders():
+    threshaxes=plt.axes((0.25,0.05,0.25,0.03))
+    thresh=Slider(threshaxes,'threshold value',0,255,50)
+    alphaaxes=plt.axes((0.25,0.15,0.25,0.03))
+    alpha=Slider(alphaaxes,'contrast control',0,3,1.5)
+    betaaxes=plt.axes((0.25,0.10,0.25,0.03))
+    beta=Slider(betaaxes,'brightness control',0,100,0)
+    return thresh,alpha,beta
+
+
+#counts the contours and so the cells (-1 because it counts the window as 1) then prints it
+def initialcellcount(contours,rows,columns,cellpicture,fig):
+    cellcount=(len(contours)-1)
+    cellcountstring=f'cell count= {cellcount}'
+    text=plt.text(-20,-20,cellcountstring)
+    # adds second, interactive window
+    fig.add_subplot(rows,columns,2)
+    pic=plt.imshow(cellpicture)
+    pic.axes.get_xaxis().set_visible(False)
+    pic.axes.get_yaxis().set_visible(False)
+    text=plt.text(-20,-20,cellcountstring,color='red')
+    return text, cellcountstring
+#this update function allows the window to be interactive and update based on the slider position
+
+def main():
+    cellpicture=openfile()
+    
+    threshval,contours,rows,columns,fig = initialplot(cellpicture)
+    setupsubplot1(rows,columns,cellpicture,fig)
+    threshaxes=plt.axes((0.25,0.05,0.25,0.03))
+    thresh=Slider(threshaxes,'threshold value',0,255,50)
+    alphaaxes=plt.axes((0.25,0.15,0.25,0.03))
+    alpha=Slider(alphaaxes,'contrast control',0,3,1.5)
+    betaaxes=plt.axes((0.25,0.10,0.25,0.03))
+    beta=Slider(betaaxes,'brightness control',0,100,0)
+    text, cellcountstring=initialcellcount(contours,rows,columns,cellpicture,fig)
+    def update(val):
+        
+        threshval=thresh.val
+        alphaval=alpha.val
+        betaval=beta.val
+        contrastboosted = cv2.convertScaleAbs(cellpicture, alpha=alphaval, beta=betaval)
+        RGBpic=cv2.cvtColor(contrastboosted,cv2.COLOR_BGR2RGB)
+        greypic=cv2.cvtColor(RGBpic,cv2.COLOR_RGB2GRAY)
+        _, binary = cv2.threshold(greypic,threshval,255,cv2.THRESH_BINARY_INV)
+        contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        # draw all contours
+        image = cv2.drawContours(RGBpic, contours, -1, (0, 255, 0), 2)
+        # show the image with the drawn contours
+        cellcount=(len(contours)-1)
+        cellcountstring=f'cell count= {cellcount}'
+        plt.imshow(image)
+        text.set_text(cellcountstring)
+    thresh.on_changed(update)
+    alpha.on_changed(update)
+    beta.on_changed(update)
+    plt.title('cell counter')
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
+# show the image with the drawn contours
+#cellcount=(len(contours)-1)
+#cellcountstring=f'cell count= {cellcount}'
+
+
+
+
+#contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+# draw all contours
+#image = cv2.drawContours(RGBpic, contours, -1, (0, 255, 0), 2)
+# show the image with the drawn contours
+#cellcount=(len(contours)-1)
+#cellcountstring=f'cell count= {cellcount}'
+#print(cellcount)
+
+#contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+# draw all contours 
+#image = cv2.drawContours(RGBpic, contours, -1, (0, 255, 0), 2)
+#cellcount=(len(contours)-1)
